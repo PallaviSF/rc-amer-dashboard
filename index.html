@@ -223,7 +223,6 @@ code{font-family:ui-monospace,'SFMono-Regular',Menlo,monospace;font-size:11px;ba
     <button class="tab active" onclick="switchTab('cases')">Cases Received</button>
     <button class="tab" onclick="switchTab('newaccts')">New Accounts</button>
     <button class="tab" onclick="switchTab('uniqaccts')">Unique Accounts</button>
-    <button class="tab" onclick="switchTab('succplan')">Success Plan</button>
     <button class="tab" onclick="switchTab('sev1')">Sev-1</button>
     <button class="tab" onclick="switchTab('pt')">P&amp;T</button>
     <button class="tab" onclick="switchTab('theme')">Theme</button>
@@ -281,7 +280,7 @@ code{font-family:ui-monospace,'SFMono-Regular',Menlo,monospace;font-size:11px;ba
       </div>
       <div class="card">
         <div class="c-ttl">New Accounts — click a row to drill in</div>
-        <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Account</th><th>First Case Date</th><th>Cases in Range</th><th>Top Severity</th><th>Primary Topic</th></tr></thead><tbody id="naBody"></tbody></table></div>
+        <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Account</th><th>Support Plan</th><th>First Case Date</th><th>Cases in Range</th><th>Top Severity</th><th>Primary Topic</th></tr></thead><tbody id="naBody"></tbody></table></div>
       </div>
     </div>
 
@@ -305,28 +304,6 @@ code{font-family:ui-monospace,'SFMono-Regular',Menlo,monospace;font-size:11px;ba
             <tbody id="acctBody"></tbody>
           </table>
         </div>
-      </div>
-    </div>
-
-    <!-- ── 4. Success Plan ── -->
-    <div id="tab-succplan" class="pane">
-      <div class="g4" id="sp-tiles"></div>
-      <div class="g2" style="align-items:start">
-        <div class="card">
-          <div class="c-ttl">Cases by Support Level — click to drill in</div>
-          <div style="position:relative;height:260px"><canvas id="spDonut"></canvas></div>
-        </div>
-        <div class="card">
-          <div class="c-ttl">Severity Mix per Plan — click a bar to drill in</div>
-          <div style="position:relative;height:260px"><canvas id="spSevChart"></canvas></div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="c-ttl">Plan Detail — count · severity mix · top topic</div>
-        <table class="tbl">
-          <thead><tr><th>Support Level</th><th style="text-align:right">Cases</th><th style="text-align:right">%</th><th class="no-sort">Severity Mix</th><th style="text-align:right;color:#dc2626">S1</th><th style="text-align:right;color:#ea580c">S2</th><th style="text-align:right;color:#d97706">S3</th><th style="text-align:right">S4</th><th>Top Topic</th></tr></thead>
-          <tbody id="spBody"></tbody>
-        </table>
       </div>
     </div>
 
@@ -735,8 +712,10 @@ function renderNewAccounts(cases){
     const topSev=SEV_ORDER.find(s=>ac.cases.some(c=>c._sev===s))||'—';
     const topicMap={};ac.cases.forEach(c=>{topicMap[c._topic]=(topicMap[c._topic]||0)+1;});
     const topTopic=Object.entries(topicMap).sort((a,b)=>b[1]-a[1])[0];
+    const plan=ac.cases[0]?.support_plan||'—';
     return `<tr class="drillable" data-acct="${esc(a)}">
       <td><strong>${esc(a)}</strong> <span class="tag t-new">new</span></td>
+      <td style="color:#64748b;font-size:11px">${esc(plan)}</td>
       <td>${ac.first}</td>
       <td style="text-align:right;font-weight:700">${ac.cases.length}</td>
       <td><span class="sev-badge" style="background:${SEV_CLR[topSev]}">${topSev}</span></td>
@@ -803,78 +782,6 @@ function renderUniqueAccounts(cases){
     <td>${v.esc?`<span class="tag t-spike">${v.esc}</span>`:'—'}</td>
   </tr>`).join('');
   tbody.querySelectorAll('tr[data-acct]').forEach(tr=>tr.addEventListener('click',()=>showPanel(cases.filter(c=>c.acct===tr.dataset.acct),tr.dataset.acct)));
-}
-
-// ─── Render: Success Plan ────────────────────────────────────
-const SP_CLR={'Premier':'#1d4ed8','Signature':'#0891b2','Basic':'#64748b','Partner Premier':'#7c3aed','—':'#e2e8f0'};
-function renderSuccessPlan(cases){
-  const map={};
-  cases.forEach(c=>{
-    const k=c.support_plan||'—';
-    if(!map[k])map[k]={t:0,s1:0,s2:0,s3:0,s4:0,topics:{}};
-    map[k].t++;
-    if(c._sev==='Sev 1')map[k].s1++;else if(c._sev==='Sev 2')map[k].s2++;
-    else if(c._sev==='Sev 3')map[k].s3++;else if(c._sev==='Sev 4')map[k].s4++;
-    map[k].topics[c._topic]=(map[k].topics[c._topic]||0)+1;
-  });
-  const total=cases.length||1;
-  const order=['Premier','Signature','Partner Premier','Basic','—'].filter(k=>map[k]);
-  // Tiles
-  const tilesEl=el('sp-tiles');
-  tilesEl.textContent='';
-  order.forEach(k=>{
-    const t=document.createElement('div');
-    t.className='tile'; t.dataset.plan=k;
-    t.innerHTML=`<div class="tile-lbl" style="color:${SP_CLR[k]}">${esc(k)}</div><div class="tile-val">${map[k].t}</div><div class="tile-d">${pct(map[k].t,total)}</div>`;
-    t.addEventListener('click',()=>showPanel(cases.filter(c=>(c.support_plan||'—')===k),`${k} (${map[k].t})`));
-    tilesEl.appendChild(t);
-  });
-  // Donut
-  mkChart('spDonut',{type:'doughnut',
-    data:{labels:order,datasets:[{data:order.map(k=>map[k].t),backgroundColor:order.map(k=>SP_CLR[k]),borderWidth:2,borderColor:'#fff',hoverOffset:4}]},
-    options:{cutout:'62%',responsive:true,maintainAspectRatio:false,
-      onClick:(e,els)=>{if(!els.length)return;const k=order[els[0].index];showPanel(cases.filter(c=>(c.support_plan||'—')===k),`${k} (${map[k].t})`);},
-      plugins:{legend:{position:'bottom',labels:{font:{size:11},boxWidth:10,padding:10}},
-        tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.parsed} (${pct(ctx.parsed,total)})`}}}}
-  });
-  // Stacked bar
-  mkChart('spSevChart',{type:'bar',
-    data:{labels:order,datasets:[
-      {label:'Sev 1',data:order.map(k=>map[k].s1),backgroundColor:'#dc2626',borderRadius:3,borderSkipped:false},
-      {label:'Sev 2',data:order.map(k=>map[k].s2),backgroundColor:'#ea580c',borderRadius:3,borderSkipped:false},
-      {label:'Sev 3',data:order.map(k=>map[k].s3),backgroundColor:'#d97706',borderRadius:3,borderSkipped:false},
-      {label:'Sev 4',data:order.map(k=>map[k].s4),backgroundColor:'#64748b',borderRadius:3,borderSkipped:false},
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,
-      onClick:(e,els)=>{if(!els.length)return;const k=order[els[0].index];showPanel(cases.filter(c=>(c.support_plan||'—')===k),k);},
-      scales:{x:{stacked:true,grid:{color:'#f1f5f9'},ticks:{font:{size:10},color:'#1e293b'}},y:{stacked:true,grid:{color:'#f1f5f9'},ticks:{font:{size:9},color:'#94a3b8'},beginAtZero:true}},
-      plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:10,padding:10}},tooltip:{mode:'index'}}}
-  });
-  // Table
-  const tbody=el('spBody');
-  tbody.textContent='';
-  order.forEach(k=>{
-    const v=map[k];
-    const topTopic=Object.entries(v.topics).sort((a,b)=>b[1]-a[1])[0];
-    const tr=document.createElement('tr');
-    tr.className='drillable'; tr.dataset.plan=k;
-    tr.innerHTML=`<td><span class="sv-dot" style="background:${SP_CLR[k]}"></span><strong>${esc(k)}</strong></td>
-      <td style="text-align:right;font-weight:700">${v.t}</td>
-      <td style="text-align:right;color:#94a3b8">${pct(v.t,total)}</td>
-      <td><div class="sb" style="width:110px">
-        ${v.s1?`<span style="width:${v.s1/v.t*100}%;background:#dc2626"></span>`:''}
-        ${v.s2?`<span style="width:${v.s2/v.t*100}%;background:#ea580c"></span>`:''}
-        ${v.s3?`<span style="width:${v.s3/v.t*100}%;background:#d97706"></span>`:''}
-        ${v.s4?`<span style="width:${v.s4/v.t*100}%;background:#64748b"></span>`:''}
-      </div></td>
-      <td style="text-align:right;color:${v.s1?'#dc2626':'#e2e8f0'}">${v.s1||'–'}</td>
-      <td style="text-align:right;color:${v.s2?'#ea580c':'#e2e8f0'}">${v.s2||'–'}</td>
-      <td style="text-align:right;color:${v.s3?'#d97706':'#e2e8f0'}">${v.s3||'–'}</td>
-      <td style="text-align:right">${v.s4||'–'}</td>
-      <td style="font-size:11px;color:#64748b">${topTopic?esc(topTopic[0]):'—'}</td>`;
-    tr.addEventListener('click',()=>showPanel(cases.filter(c=>(c.support_plan||'—')===k),k));
-    tbody.appendChild(tr);
-  });
 }
 
 // ─── Render: Sev-1 ───────────────────────────────────────────
@@ -1076,7 +983,6 @@ function renderAll(){
   renderCases(cases);
   renderNewAccounts(cases);
   renderUniqueAccounts(cases);
-  renderSuccessPlan(cases);
   renderSev1(cases);
   renderPT(cases);
   renderTheme(cases);
