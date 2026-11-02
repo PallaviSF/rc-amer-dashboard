@@ -848,12 +848,20 @@ function renderPT(cases){
     const clr=chg===null?'#94a3b8':chg>=10?'#1d4ed8':chg<=-30?'#94a3b8':'#64748b';
     let tag='';
     if(chg!==null){if(chg>=100)tag='<span class="tag t-spike">spike</span>';else if(chg>=10)tag='<span class="tag t-grow">▲</span>';else if(chg<=-30)tag='<span class="tag t-drop">▼</span>';else tag='<span class="tag t-flat">–</span>';}
-    const sevMix=SEV_ORDER.map(s=>{const n=cases.filter(c=>c.cloud===cloud&&c._sev===s).length;return n?`<span style="color:${SEV_CLR[s]};font-weight:600">${s.slice(-1)}:${n}</span>`:null;}).filter(Boolean).join(' ');
+    const sc={};SEV_ORDER.forEach(s=>{sc[s]=cases.filter(c=>c.cloud===cloud&&c._sev===s).length;});
+    const sevBar=`<div style="display:flex;flex-direction:column;gap:2px;min-width:120px">
+      <div style="display:flex;height:8px;border-radius:3px;overflow:hidden;gap:1px">
+        ${SEV_ORDER.map(s=>sc[s]?`<span style="width:${sc[s]/oct*100}%;background:${SEV_CLR[s]};display:block" title="${s}: ${sc[s]}"></span>`:'').join('')}
+      </div>
+      <div style="display:flex;gap:6px;font-size:9px;font-weight:600">
+        ${SEV_ORDER.map(s=>sc[s]?`<span style="color:${SEV_CLR[s]}">S${s.slice(-1)} ${sc[s]}</span>`:'').join('')}
+      </div>
+    </div>`;
     return `<tr class="drillable" data-cloud="${esc(cloud)}">
       <td style="white-space:nowrap">${esc(shortTopic(cloud))}</td>
       <td style="text-align:right;font-weight:700">${oct}</td>
       <td style="text-align:right;color:#94a3b8">${pct(oct,total)}</td>
-      <td>${sevMix}</td>
+      <td>${sevBar}</td>
       <td style="text-align:right;color:#94a3b8">${sep||'—'}</td>
       <td style="text-align:right;color:${clr};font-weight:600">${chgStr}</td>
       <td>${tag}</td>
